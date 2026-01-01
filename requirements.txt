@@ -1,0 +1,22 @@
+# Claude Agent SDK
+claude-agent-sdk
+
+# OpenAI for openai voice
+openai>=1.54.0
+websockets>=12.0
+
+# Azure Voice Live API
+azure-ai-voicelive>=1.0.0
+azure-core>=1.30.0
+azure-identity>=1.15.0
+
+# Twilio for phone calls
+twilio>=9.0.0
+flask>=3.0.0
+flask-sock>=0.7.0
+
+# Environment variables
+python-dotenv>=1.0.0
+
+# Additional utilities
+requests>=2.31.0
