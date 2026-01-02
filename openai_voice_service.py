@@ -11,6 +11,7 @@ from twilio.rest import Client
 from twilio.twiml.voice_response import VoiceResponse, Connect, Stream
 from flask import Flask, request, Response
 from dotenv import load_dotenv
+from call_audio_logger import CallAudioLogger
 
 load_dotenv()
 
@@ -113,6 +114,7 @@ class OpenAICallServer:
         call_sid = None
         stream_sid = None
         openai_ws = None
+        audio_logger = None
 
         try:
             # Connect to OpenAI Realtime API
@@ -159,7 +161,7 @@ class OpenAICallServer:
             # Create tasks for bidirectional streaming
             async def twilio_to_openai():
                 """Forward audio from Twilio to OpenAI"""
-                nonlocal call_sid, stream_sid
+                nonlocal call_sid, stream_sid, audio_logger
                 async for message in websocket:
                     data = json.loads(message)
 
@@ -167,14 +169,25 @@ class OpenAICallServer:
                         call_sid = data['start']['callSid']
                         stream_sid = data['start']['streamSid']
                         print(f"[Twilio] Stream started - Call: {call_sid}, Stream: {stream_sid}")
+                        
+                        # Initialize audio logger for this call (session-based mode for OpenAI)
+                        audio_logger = CallAudioLogger(call_sid)
+                        # OpenAI uses session-based output (response.create -> audio deltas -> response.done)
+                        audio_logger.set_continuous_mode(continuous=False)
+                        print(f"[AudioLogger] Started logging for call {call_sid} (session-based mode)")
 
                     elif data['event'] == 'media':
                         # Forward audio to OpenAI
+                        audio_payload = data['media']['payload']
                         audio_append = {
                             "type": "input_audio_buffer.append",
-                            "audio": data['media']['payload']
+                            "audio": audio_payload
                         }
                         await openai_ws.send(json.dumps(audio_append))
+                        
+                        # Log input audio
+                        if audio_logger:
+                            audio_logger.log_input_audio(audio_payload)
 
                     elif data['event'] == 'stop':
                         print(f"[Twilio] Stream stopped")
@@ -182,41 +195,95 @@ class OpenAICallServer:
 
             async def openai_to_twilio():
                 """Forward audio from OpenAI to Twilio"""
-                async for message in openai_ws:
-                    response = json.loads(message)
+                nonlocal audio_logger
+                try:
+                    async for message in openai_ws:
+                        response = json.loads(message)
 
-                    if response['type'] == 'response.audio.delta':
-                        # Forward audio to Twilio
-                        audio_delta = {
-                            "event": "media",
-                            "streamSid": stream_sid,
-                            "media": {
-                                "payload": response['delta']
+                        if response['type'] == 'response.create':
+                            # Start a new output session when response is created
+                            if audio_logger:
+                                audio_logger.start_output_session()
+
+                        elif response['type'] == 'response.audio.delta':
+                            # Forward audio to Twilio
+                            # OpenAI sends base64-encoded audio
+                            audio_delta = {
+                                "event": "media",
+                                "streamSid": stream_sid,
+                                "media": {
+                                    "payload": response['delta']
+                                }
                             }
-                        }
-                        await websocket.send(json.dumps(audio_delta))
+                            await websocket.send(json.dumps(audio_delta))
+                            
+                            # Log output audio (decode base64 first)
+                            if audio_logger:
+                                try:
+                                    decoded_bytes = base64.b64decode(response['delta'])
+                                    audio_logger.log_output_audio_chunk(decoded_bytes)
+                                except Exception as e:
+                                    print(f"[AudioLogger] Error decoding audio chunk: {e}")
 
-                    elif response['type'] == 'response.audio_transcript.done':
-                        transcript = response.get('transcript', '')
-                        print(f"[Agent] Said: {transcript}")
+                        elif response['type'] == 'response.audio_transcript.done':
+                            transcript = response.get('transcript', '')
+                            print(f"[Agent] Said: {transcript}")
+                            if audio_logger:
+                                audio_logger.log_transcript("agent", transcript)
 
-                    elif response['type'] == 'conversation.item.input_audio_transcription.completed':
-                        transcript = response.get('transcript', '')
-                        print(f"[Receptionist] Said: {transcript}")
+                        elif response['type'] == 'conversation.item.input_audio_transcription.completed':
+                            transcript = response.get('transcript', '')
+                            print(f"[Receptionist] Said: {transcript}")
+                            if audio_logger:
+                                audio_logger.log_transcript("user", transcript)
 
-                    elif response['type'] == 'error':
-                        error = response.get('error', {})
-                        print(f"[OpenAI] Error: {error}")
+                        elif response['type'] == 'response.done':
+                            # End the current output session when response is done
+                            if audio_logger:
+                                audio_logger.end_output_session()
 
-            # Run both directions concurrently
-            await asyncio.gather(
-                twilio_to_openai(),
-                openai_to_twilio()
+                        elif response['type'] == 'error':
+                            error = response.get('error', {})
+                            print(f"[OpenAI] Error: {error}")
+                except asyncio.CancelledError:
+                    print("[OpenAI] openai_to_twilio task cancelled")
+                    raise
+                except Exception as e:
+                    print(f"[Error] Error in openai_to_twilio: {e}")
+                    raise
+
+            # Create tasks so we can cancel them
+            twilio_task = asyncio.create_task(twilio_to_openai())
+            openai_task = asyncio.create_task(openai_to_twilio())
+
+            # Wait for either task to complete, then cancel the other
+            done, pending = await asyncio.wait(
+                [twilio_task, openai_task],
+                return_when=asyncio.FIRST_COMPLETED
             )
+
+            # Cancel the pending task
+            for task in pending:
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+                except Exception as e:
+                    print(f"[Warning] Exception while cancelling task: {e}")
+
+            # Check for exceptions in completed tasks
+            for task in done:
+                if task.exception():
+                    raise task.exception()
 
         except Exception as e:
             print(f"[Error] WebSocket error: {e}")
         finally:
+            # Save audio log when call ends
+            if audio_logger:
+                print("[AudioLogger] Saving call log...")
+                audio_logger.save()
             if openai_ws:
                 await openai_ws.close()
             print("[WebSocket] Connection closed")
