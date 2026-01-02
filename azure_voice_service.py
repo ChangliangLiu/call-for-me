@@ -22,7 +22,8 @@ from azure.ai.voicelive.models import (
     OutputAudioFormat,
     RequestSession,
     ServerEventType,
-    ServerVad
+    ServerVad,
+    AzureSemanticVadEn,
 )
 
 load_dotenv()
@@ -224,11 +225,10 @@ class AzureCallServer:
             # OpenAI-style voice (alloy, echo, fable, onyx, nova, shimmer, coral)
             voice_config = self.voice_name
 
-        # Create turn detection configuration (optimized for phone)
-        turn_detection_config = ServerVad(
+        turn_detection_config = AzureSemanticVadEn(
             threshold=0.5,
-            prefix_padding_ms=300,
-            silence_duration_ms=700  # Slightly longer for phone quality
+            prefix_padding_ms=200,
+            silence_duration_ms=350  # Slightly longer for phone quality
         )
 
         # Create session configuration
@@ -242,7 +242,7 @@ class AzureCallServer:
             turn_detection=turn_detection_config,
             input_audio_echo_cancellation=AudioEchoCancellation(),
             input_audio_noise_reduction=AudioNoiseReduction(type="azure_deep_noise_suppression"),
-            input_audio_transcription={"model": "azure-speech"}  # Enable receptionist transcription
+            input_audio_transcription={"model": "azure-speech", "language": "en-US"}  # Enable receptionist transcription
         )
 
         await conn.session.update(session=session_config)
@@ -280,15 +280,11 @@ class AzureCallServer:
 
         elif event.type == ServerEventType.RESPONSE_AUDIO_TRANSCRIPT_DONE:
             # Azure provides transcript of agent's speech
-            transcript = getattr(event, 'transcript', '')
-            if transcript:
-                print(f"[Agent] Said: {transcript}")
+            print(f"[Agent] Said: {event.transcript}")
 
         elif event.type == ServerEventType.CONVERSATION_ITEM_INPUT_AUDIO_TRANSCRIPTION_COMPLETED:
             # Azure provides transcript of user's speech
-            transcript = getattr(event, 'transcript', '')
-            if transcript:
-                print(f"[User] Said: {transcript}")
+            print(f"[User] Said: {event.transcript}")
 
         elif event.type == ServerEventType.RESPONSE_AUDIO_DONE:
             print("[Agent] Finished speaking")
