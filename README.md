@@ -1,8 +1,8 @@
-# AI Agent for Doctor Appointment Booking & Personal Assistant
+# AI Agent for Doctor Appointment Booking & Front Desk
 
 An intelligent agent that can:
 1. **Make outbound calls** to doctor's offices to schedule appointments on your behalf
-2. **Handle inbound calls** as your personal assistant, answering questions and taking messages
+2. **Handle inbound calls** as a doctor office front desk, answering calls and scheduling appointments
 
 Supports ultra-low latency real-time voice calls using OpenAI GPT-4o Realtime API or Azure Voice Live API.
 
@@ -12,11 +12,11 @@ Supports ultra-low latency real-time voice calls using OpenAI GPT-4o Realtime AP
 - **OpenAI Mode**: Ultra-low latency (200-300ms) real phone calls using OpenAI GPT-4o Realtime API
 - **Azure Mode**: Ultra-low latency real phone calls using Azure Voice Live API with advanced audio processing
 
-### Inbound Calling (Personal Assistant)
-- **OpenAI Inbound Mode**: Answers incoming calls as your AI personal assistant
+### Inbound Calling (Doctor Office Front Desk)
+- **OpenAI Inbound Mode**: Answers incoming calls as a doctor office front desk receptionist
 - **Azure Inbound Mode**: Answers incoming calls using Azure's voice technology
-- **Message Taking**: Takes detailed notes and messages from callers
-- **Professional Greeting**: Identifies itself as your assistant and handles calls professionally
+- **Appointment Scheduling**: Schedules appointments with doctors based on availability
+- **Professional Greeting**: Greets callers professionally as the front desk and handles calls
 
 ### General Features
 - **Configurable Info**: Store patient/assistant details in JSON config files
@@ -48,16 +48,28 @@ Edit [patient_info.json](patient_info.json) with your details:
 }
 ```
 
-#### For Inbound Calls (Personal Assistant)
+#### For Inbound Calls (Doctor Office Front Desk)
 
-Edit [assistant_info.json](assistant_info.json) with your details:
+Edit [assistant_info.json](assistant_info.json) with your clinic details:
 
 ```json
 {
-  "owner_name": "Your Name",
-  "greeting_message": "Hello, thank you for calling. This is [Your Name]'s AI assistant.",
-  "shareable_info": "Brief info callers can know (availability, email, etc.)",
-  "special_instructions": "How the assistant should handle calls and take messages"
+  "clinic_name": "Your Clinic Name",
+  "role": "front_desk",
+  "greeting_message": "Thank you for calling [Clinic Name]. This is the front desk. How can I help you today?",
+  "doctors": {
+    "doctor1": {
+      "name": "Dr. Name",
+      "availability": {
+        "next_week": {
+          "monday": "available",
+          "tuesday": "available"
+        },
+        "current_week": "fully_booked"
+      }
+    }
+  },
+  "special_instructions": "You are the front desk receptionist. Help callers schedule appointments. Collect patient name, reason for visit, and preferred appointment time."
 }
 ```
 
@@ -80,6 +92,8 @@ OPENAI_API_KEY=sk-proj-your_actual_api_key_here
 AZURE_VOICELIVE_API_KEY=your_azure_api_key_here
 AZURE_VOICELIVE_ENDPOINT=https://your-endpoint.azure.com
 ```
+
+Make sure to use SJ-55 VPN
 
 **Note:** The `.env` file is already created for you. Just edit it with your credentials. It's automatically ignored by git to keep your credentials secure.
 
@@ -139,11 +153,11 @@ python3 agent.py --mode azure \
 - Azure's enterprise-grade infrastructure
 - Customizable voice selection
 
-### Inbound Calls (Personal Assistant)
+### Inbound Calls (Doctor Office Front Desk)
 
 #### OpenAI Inbound Mode (OpenAI GPT-4o) - Recommended
 
-Answer incoming calls as your AI personal assistant:
+Answer incoming calls as a doctor office front desk receptionist:
 
 ```bash
 python3 agent.py --mode openai-inbound \
@@ -156,7 +170,7 @@ python3 agent.py --mode openai-inbound \
    - No need to manually configure Twilio Console anymore
    - The agent will automatically update your phone number's webhook to the new ngrok URL
    - This happens every time you restart the server with a new ngrok URL
-3. Now when someone calls your Twilio number, the AI assistant will answer!
+3. Now when someone calls your Twilio number, the AI front desk will answer!
 
 **Manual Configuration (if auto-update fails):**
 If the automatic update doesn't work, you can manually configure in Twilio Console:
@@ -168,10 +182,10 @@ If the automatic update doesn't work, you can manually configure in Twilio Conso
      - **HTTP**: POST
 
 **What it does:**
-- Greets callers professionally as your assistant
-- Asks for their name and purpose of call
-- Takes detailed messages and notes
-- Answers questions about your availability
+- Greets callers professionally as the front desk
+- Helps schedule appointments with available doctors
+- Checks doctor availability based on the configuration
+- Collects patient information (name, reason for visit, preferred time)
 - Handles calls naturally with ultra-low latency
 
 #### Azure Inbound Mode
@@ -226,13 +240,13 @@ python3 agent.py --mode azure \
   --webhook https://abc123.ngrok-free.dev
 ```
 
-### Example 3: Running as Personal Assistant (Inbound Calls)
+### Example 3: Running as Doctor Office Front Desk (Inbound Calls)
 
 ```bash
 # Terminal 1: Start ngrok
 ngrok http 5001
 
-# Terminal 2: Start the assistant
+# Terminal 2: Start the front desk
 python3 agent.py --mode openai-inbound \
   --webhook https://abc123.ngrok-free.dev
 
@@ -240,10 +254,10 @@ python3 agent.py --mode openai-inbound \
 # Go to Twilio Console and set your phone number's webhook to:
 # https://abc123.ngrok-free.dev/incoming-call
 
-# Now call your Twilio number and the AI assistant will answer!
+# Now call your Twilio number and the AI front desk will answer!
 ```
 
-### Example 4: Personal Assistant with Azure
+### Example 4: Doctor Office Front Desk with Azure
 
 ```bash
 # Terminal 1: Start ngrok
@@ -262,7 +276,7 @@ python3 agent.py --mode azure-inbound \
   - `openai-inbound`: Inbound calls with OpenAI
   - `azure-inbound`: Inbound calls with Azure
 - [patient_info.json](patient_info.json): Patient configuration for outbound appointment calls
-- [assistant_info.json](assistant_info.json): Assistant configuration for inbound personal assistant calls
+- [assistant_info.json](assistant_info.json): Front desk configuration for inbound doctor office calls
 - [openai_voice_service.py](openai_voice_service.py): OpenAI Realtime API integration
 - [azure_voice_service.py](azure_voice_service.py): Azure Voice Live API integration
 
@@ -326,11 +340,3 @@ See [Twilio Pricing](https://www.twilio.com/voice/pricing) and [OpenAI Pricing](
 - [ ] Support for rescheduling and cancellation
 - [ ] More sophisticated natural language understanding
 - [ ] Integration with EHR systems
-
-## License
-
-MIT License - feel free to modify and use for your needs!
-
-## Contributing
-
-Contributions welcome! Please open an issue or submit a pull request.

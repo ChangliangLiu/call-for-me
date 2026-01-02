@@ -201,32 +201,49 @@ Important behavioral guidelines:
         print("\n\n[Call server stopped]\n")
 
 def create_assistant_prompt(assistant_info):
-    """Create the system prompt for the personal assistant based on assistant info"""
-    return f"""You are {assistant_info['owner_name']}'s personal AI assistant. You answer phone calls on their behalf when they are unavailable.
+    """Create the system prompt for the front desk based on assistant info"""
+    clinic_name = assistant_info.get('clinic_name', 'Allegaro Pediatrics')
+    
+    # Build doctor availability information
+    doctors_info = []
+    if 'doctors' in assistant_info:
+        for doctor_key, doctor_data in assistant_info['doctors'].items():
+            doctor_name = doctor_data.get('name', doctor_key.title())
+            availability = doctor_data.get('availability', {})
+            next_week_avail = availability.get('next_week', {})
+            available_days = [day.title() for day, status in next_week_avail.items() if status == 'available']
+            if available_days:
+                doctors_info.append(f"- {doctor_name}: Available on {', '.join(available_days)} next week")
+    
+    doctors_availability = '\n'.join(doctors_info) if doctors_info else "Please check availability with the front desk."
+    
+    return f"""You are the front desk receptionist for {clinic_name}. You answer phone calls and help patients schedule appointments.
 
 Your responsibilities:
-- Answer questions about {assistant_info['owner_name']}
-- Take messages and notes from callers
-- Provide information as appropriate
+- Answer phone calls professionally and courteously
+- Help patients schedule appointments with available doctors
+- Provide information about doctor availability
+- Collect necessary information: patient name, reason for visit, preferred appointment time
 - Be professional, friendly, and helpful
 
-Information you can share:
-{assistant_info.get('shareable_info', 'Basic availability and contact information')}
+Doctor Availability:
+{doctors_availability}
 
 Important guidelines:
-- Always identify yourself as {assistant_info['owner_name']}'s AI assistant at the beginning of the call
-- Ask for the caller's name and purpose of the call
-- Take detailed notes of messages
-- If asked about sensitive information, politely explain you cannot share that
-- Offer to take a message or schedule a callback
+- Always identify yourself as the front desk for {clinic_name} at the beginning of the call
+- Ask for the caller's name and how you can help them
+- When scheduling appointments, confirm the patient's name, reason for visit, preferred doctor, and preferred time
+- If a requested time is not available, suggest alternative times
 - Be conversational and natural
+- Confirm appointment details before ending the call
 
-Special notes: {assistant_info.get('special_instructions', 'Handle all calls professionally')}"""
+Special notes: {assistant_info.get('special_instructions', 'Handle all calls professionally and help with appointment scheduling')}"""
 
 def openai_inbound_mode(assistant_info, webhook_url, port=5001):
-    """Handle inbound calls using OpenAI GPT-4o Realtime API (personal assistant mode)"""
+    """Handle inbound calls using OpenAI GPT-4o Realtime API (front desk mode)"""
+    clinic_name = assistant_info.get('clinic_name', 'Allegaro Pediatrics')
     print("\n" + "="*60)
-    print(f"{assistant_info['owner_name'].upper()}'S PERSONAL ASSISTANT - INBOUND CALLS")
+    print(f"{clinic_name.upper()} - FRONT DESK - INBOUND CALLS")
     print("="*60)
     print(f"Webhook URL: {webhook_url}")
     print(f"Local Port: {port}")
@@ -236,10 +253,10 @@ def openai_inbound_mode(assistant_info, webhook_url, port=5001):
     system_prompt = create_assistant_prompt(assistant_info)
 
     # Get greeting message from config or use default
-    greeting = assistant_info.get('greeting_message', f"Hello, this is {assistant_info['owner_name']}'s assistant. How can I help you today?")
+    greeting = assistant_info.get('greeting_message', f"Thank you for calling {clinic_name}. This is the front desk. How can I help you today?")
 
     # Create system instructions for OpenAI
-    system_instructions = f"""You are an AI personal assistant answering an incoming phone call.
+    system_instructions = f"""You are the front desk receptionist answering an incoming phone call for {clinic_name}.
 
 {system_prompt}
 
@@ -249,11 +266,12 @@ CRITICAL FIRST ACTION:
 - After greeting, pause briefly to let them respond
 
 Important behavioral guidelines:
-- After your greeting, ask for the caller's name if they don't introduce themselves
-- Listen carefully and take detailed notes of their message
-- Be helpful and courteous at all times
-- If they ask to speak with {assistant_info['owner_name']}, explain they are currently unavailable and offer to take a message
-- Before ending the call, summarize what you understood and confirm you'll relay the message
+- After your greeting, ask for the caller's name and how you can help them
+- If they want to schedule an appointment, ask which doctor they prefer and their preferred date/time
+- Provide available appointment times based on doctor availability
+- Collect necessary information: patient name, reason for visit, preferred doctor, and time
+- Confirm all appointment details before ending the call
+- Be helpful, professional, and courteous at all times
 - Keep responses natural and concise"""
 
     try:
@@ -284,9 +302,10 @@ Important behavioral guidelines:
         print("\n\n[Inbound call server stopped]\n")
 
 def azure_inbound_mode(assistant_info, webhook_url, port=5001):
-    """Handle inbound calls using Azure Voice Live API (personal assistant mode)"""
+    """Handle inbound calls using Azure Voice Live API (front desk mode)"""
+    clinic_name = assistant_info.get('clinic_name', 'Allegaro Pediatrics')
     print("\n" + "="*60)
-    print(f"{assistant_info['owner_name'].upper()}'S PERSONAL ASSISTANT - INBOUND CALLS")
+    print(f"{clinic_name.upper()} - FRONT DESK - INBOUND CALLS")
     print("="*60)
     print(f"Webhook URL: {webhook_url}")
     print(f"Local Port: {port}")
@@ -296,10 +315,10 @@ def azure_inbound_mode(assistant_info, webhook_url, port=5001):
     system_prompt = create_assistant_prompt(assistant_info)
 
     # Get greeting message from config or use default
-    greeting = assistant_info.get('greeting_message', f"Hello, this is {assistant_info['owner_name']}'s assistant. How can I help you today?")
+    greeting = assistant_info.get('greeting_message', f"Thank you for calling {clinic_name}. This is the front desk. How can I help you today?")
 
     # Create system instructions for Azure
-    system_instructions = f"""You are an AI personal assistant answering an incoming phone call.
+    system_instructions = f"""You are the front desk receptionist answering an incoming phone call for {clinic_name}.
 
 {system_prompt}
 
@@ -309,11 +328,12 @@ CRITICAL FIRST ACTION:
 - After greeting, pause briefly to let them respond
 
 Important behavioral guidelines:
-- After your greeting, ask for the caller's name if they don't introduce themselves
-- Listen carefully and take detailed notes of their message
-- Be helpful and courteous at all times
-- If they ask to speak with {assistant_info['owner_name']}, explain they are currently unavailable and offer to take a message
-- Before ending the call, summarize what you understood and confirm you'll relay the message
+- After your greeting, ask for the caller's name and how you can help them
+- If they want to schedule an appointment, ask which doctor they prefer and their preferred date/time
+- Provide available appointment times based on doctor availability
+- Collect necessary information: patient name, reason for visit, preferred doctor, and time
+- Confirm all appointment details before ending the call
+- Be helpful, professional, and courteous at all times
 - Keep responses natural and concise"""
 
     try:
@@ -370,7 +390,8 @@ def main():
             print("Please create assistant_info.json for inbound call configuration.")
             sys.exit(1)
 
-        print(f"\nLoaded assistant configuration for: {assistant_info['owner_name']}")
+        clinic_name = assistant_info.get('clinic_name', 'Allegaro Pediatrics')
+        print(f"\nLoaded front desk configuration for: {clinic_name}")
 
         if not args.webhook:
             print("Error: --webhook is required for inbound mode")

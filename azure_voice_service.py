@@ -89,8 +89,8 @@ class AzureCallServer:
         self.greeting_message = greeting_message
         self.azure_api_key = os.environ.get('AZURE_VOICELIVE_API_KEY')
         self.azure_endpoint = os.environ.get('AZURE_VOICELIVE_ENDPOINT')
-        self.azure_model = os.environ.get('AZURE_VOICELIVE_MODEL', 'gpt-realtime')
-        self.voice_name = os.environ.get('AZURE_VOICELIVE_VOICE', 'en-US-Ava:DragonHDLatestNeural')
+        self.azure_model = os.environ.get('AZURE_VOICELIVE_MODEL')
+        self.voice_name = os.environ.get('AZURE_VOICELIVE_VOICE')
         self.setup_routes()
 
     def setup_routes(self):
@@ -281,7 +281,7 @@ class AzureCallServer:
         turn_detection_config = AzureSemanticVadEn(
             threshold=0.5,
             prefix_padding_ms=200,
-            silence_duration_ms=350  # Slightly longer for phone quality
+            silence_duration_ms=350,
         )
 
         # Create session configuration
@@ -293,9 +293,7 @@ class AzureCallServer:
             input_audio_format=InputAudioFormat.G711_ULAW,  # Twilio format
             output_audio_format=OutputAudioFormat.G711_ULAW,  # Twilio format
             turn_detection=turn_detection_config,
-            input_audio_echo_cancellation=AudioEchoCancellation(),
-            input_audio_noise_reduction=AudioNoiseReduction(type="azure_deep_noise_suppression"),
-            input_audio_transcription={"model": "azure-speech", "language": "en-US"}  # Enable receptionist transcription
+            input_audio_transcription={"model": "azure-speech", "language": "en-US"},  # Enable receptionist transcription, English only
         )
 
         await conn.session.update(session=session_config)
